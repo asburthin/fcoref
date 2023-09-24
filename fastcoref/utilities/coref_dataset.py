@@ -45,9 +45,19 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
 
     # shifting clusters indices to align with bpe tokens
     # align clusters is the reason we can't do it in batches.
-    new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
-                      encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)
-                     for start, end in cluster] for cluster in clusters]
+    try:
+        new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
+                        encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)
+                        for start, end in cluster] for cluster in clusters]
+    except:
+        print(tokens)
+        print(clusters)
+        print(new_tokens)
+        print(token_to_new_token_map)
+        print(new_token_to_token_map)
+        print(encoded_text.word_ids())
+        new_clusters = []
+        # raise ValueError
 
     return {'tokens': tokens,
             'input_ids': encoded_text['input_ids'],
@@ -66,17 +76,25 @@ def encode(example, tokenizer, nlp):
         pass
     elif 'text' in example and example['text']:
         clusters = example['clusters']
-        spacy_doc = nlp(example['text'])
-        example['tokens'] = [tok.text for tok in spacy_doc]
 
-        new_clusters = [[(spacy_doc.char_span(start, end).start,
-                          spacy_doc.char_span(start, end).end - 1)
+        split_locations = sorted(set([split for cluster in clusters for splits in cluster for split in splits]))
+        split_locations = [0] + split_locations + [len(example['text'])]
+
+        example['tokens'] = []
+        char_idx_to_token_idx = {}
+        for start, end in zip(split_locations, split_locations[1:]):
+            example['tokens'].append(example['text'][start:end])
+            char_idx_to_token_idx[start] = len(example['tokens']) - 1
+        char_idx_to_token_idx[end] = len(example['tokens'])
+
+        new_clusters = [[(char_idx_to_token_idx[start],
+                          char_idx_to_token_idx[end] - 1)
                          for start, end in cluster] for cluster in clusters]
         # verify alignment
         for cluster, new_cluster in zip(clusters, new_clusters):
             for (s1, e1), (s2, e2) in zip(cluster, new_cluster):
-                mention = [tok.text for tok in nlp(example['text'][s1:e1])]
-                assert mention == example['tokens'][s2:e2 + 1], (mention, example['tokens'][s2:e2 + 1])
+                mention = example['text'][s1:e1]
+                assert mention == "".join(example['tokens'][s2:e2 + 1]), (mention, example['tokens'][s2:e2 + 1])
 
         example['clusters'] = new_clusters
     else:
