@@ -33,7 +33,15 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         for start, end in cluster:
             assert tokens[start:end + 1] == new_tokens[token_to_new_token_map[start]:token_to_new_token_map[end] + 1]
 
-    encoded_text = tokenizer(new_tokens, add_special_tokens=True, is_split_into_words=True)
+    print(new_tokens)
+    encoded_text = tokenizer(
+        new_tokens, add_special_tokens=True, is_split_into_words=True,
+        return_length=True, return_attention_mask=False
+    )
+    print(encoded_text)
+    print("=====================================")
+    print
+    # encoded_text = tokenizer(new_tokens, add_special_tokens=True, is_split_into_words=True)
 
     new_clusters = [[(encoded_text.word_to_tokens(token_to_new_token_map[start]).start,
                       encoded_text.word_to_tokens(token_to_new_token_map[end]).end - 1)

@@ -1,0 +1,12 @@
+__pycache__/
+*/.DS_Store
+*/.pytest_cache/
+*/__pycache__/
+
+cache/
+
+trained_models/
+wandb/
+test_training/
+exploring/
+```

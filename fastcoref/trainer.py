@@ -28,6 +28,8 @@ from fastcoref.utilities.util import (
     save_all,
 )
 
+from fastcoref.zp_metrics import AZPCorefEvaluator
+
 # Setup logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -289,15 +291,15 @@ class CorefTrainer:
                 ]  # model outputs are always tuple in transformers (see doc)
 
                 tr_loss += loss.item()
-                # scaler.scale(loss).backward()
+                scaler.scale(loss).backward()
 
-                # scaler.step(optimizer)
-                # scheduler.step()  # Update learning rate schedule
-                # scaler.update()  # Updates the scale for next iteration
+                scaler.step(optimizer)
+                scheduler.step()  # Update learning rate schedule
+                scaler.update()  # Updates the scale for next iteration
 
-                loss.backward()
-                optimizer.step()
-                scheduler.step()
+                # loss.backward()
+                # optimizer.step()
+                # scheduler.step()
 
                 global_step += 1
 
@@ -353,7 +355,11 @@ class CorefTrainer:
             "loss": 0.0,
             "post_pruning": MentionEvaluator(),
             "mentions": MentionEvaluator(),
+            "zero_mentions": MentionEvaluator(),
+            "normal_mentions": MentionEvaluator(),
             "coref": CorefEvaluator(),
+            "wozp_evaluator": CorefEvaluator(),
+            "azp_evaluator": AZPCorefEvaluator(),
         }
         doc_to_tokens = {}
         doc_to_subtoken_map = {}

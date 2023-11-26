@@ -223,7 +223,7 @@ class FCorefModel(BertPreTrainedModel):
         :param mention_logits_or_weights: Either the span mention logits or weights, size [batch_size, seq_length, seq_length]
         """
         mention_mask = torch.ones_like(mention_logits_or_weights, dtype=self.dtype)
-        mention_mask = mention_mask.triu(diagonal=0)
+        mention_mask = mention_mask.triu(diagonal=-1)
         mention_mask = mention_mask.tril(diagonal=self.max_span_length - 1)
         return mention_mask
 
@@ -310,8 +310,8 @@ class FCorefModel(BertPreTrainedModel):
 
         try:
             outputs = self.base_model(input_ids, attention_mask=attention_mask)
-            print("normal:", input_ids.shape)
-            print("normal:", attention_mask.shape)
+            # print("normal:", input_ids.shape)
+            # print("normal:", attention_mask.shape)
         except:
             print("error:", input_ids.shape)
             print("error:", attention_mask.shape)
