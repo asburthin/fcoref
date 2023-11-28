@@ -139,7 +139,7 @@ class FCorefModel(BertPreTrainedModel):
         ]  # [batch_size, max_k]
 
         # this is antecedents scores - rows mentions, cols coref mentions
-        topk_mention_logits = topk_mention_logits.unsqueeze(
+        topk_mention_logits_pair = topk_mention_logits.unsqueeze(
             -1
         ) + topk_mention_logits.unsqueeze(
             -2
@@ -150,6 +150,7 @@ class FCorefModel(BertPreTrainedModel):
             topk_mention_end_ids,
             span_mask,
             topk_mention_logits,
+            topk_mention_logits_pair,
         )
 
     def _mask_antecedent_logits(self, antecedent_logits, span_mask):
@@ -172,6 +173,7 @@ class FCorefModel(BertPreTrainedModel):
         """
         batch_size, max_k = span_starts.size()
         new_cluster_labels = torch.zeros((batch_size, max_k, max_k + 1), device="cpu")
+        mention_labels = torch.zeros((batch_size, max_k), device="cpu")
         all_clusters_cpu = all_clusters.cpu().numpy()
         for b, (starts, ends, gold_clusters) in enumerate(
             zip(span_starts.cpu().tolist(), span_ends.cpu().tolist(), all_clusters_cpu)
@@ -182,16 +184,23 @@ class FCorefModel(BertPreTrainedModel):
             for i, (start, end) in enumerate(zip(starts, ends)):
                 if (start, end) not in gold_mentions:
                     continue
+                mention_labels[b, i] = 1
                 for j, (a_start, a_end) in enumerate(list(zip(starts, ends))[:i]):
                     if (a_start, a_end) in mention_to_gold_clusters[(start, end)]:
                         new_cluster_labels[b, i, j] = 1
         new_cluster_labels = new_cluster_labels.to(self.device)
+        mention_labels = mention_labels.to(self.device)
         no_antecedents = 1 - torch.sum(new_cluster_labels, dim=-1).bool().float()
         new_cluster_labels[:, :, -1] = no_antecedents
-        return new_cluster_labels
+        return mention_labels, new_cluster_labels
 
     def _get_marginal_log_likelihood_loss(
-        self, coref_logits, cluster_labels_after_pruning, span_mask
+        self,
+        topk_mention_logits,
+        coref_logits,
+        mention_labels_after_pruning,
+        cluster_labels_after_pruning,
+        span_mask,
     ):
         """
         :param coref_logits: [batch_size, max_k, max_k]
@@ -199,6 +208,9 @@ class FCorefModel(BertPreTrainedModel):
         :param span_mask: [batch_size, max_k]
         :return:
         """
+        bce_loss = torch.nn.BCEWithLogitsLoss(reduction="none")
+        mention_loss = bce_loss(topk_mention_logits, mention_labels_after_pruning)
+
         gold_coref_logits = mask_tensor(coref_logits, cluster_labels_after_pruning)
 
         gold_log_sum_exp = torch.logsumexp(
@@ -207,7 +219,7 @@ class FCorefModel(BertPreTrainedModel):
         all_log_sum_exp = torch.logsumexp(coref_logits, dim=-1)  # [batch_size, max_k]
 
         gold_log_probs = gold_log_sum_exp - all_log_sum_exp
-        losses = -gold_log_probs
+        losses = -gold_log_probs + mention_loss
 
         losses = losses * span_mask
         per_example_loss = torch.sum(losses, dim=-1)  # [batch_size]
@@ -359,6 +371,7 @@ class FCorefModel(BertPreTrainedModel):
             mention_end_ids,
             span_mask,
             topk_mention_logits,
+            topk_mention_logits_pair,
         ) = self._prune_topk_mentions(mention_logits, attention_mask, topk_1d_indices)
 
         batch_size, _, dim = start_coref_reps.size()
@@ -377,7 +390,7 @@ class FCorefModel(BertPreTrainedModel):
             topk_start_coref_reps, topk_end_coref_reps
         )
 
-        final_logits = topk_mention_logits + coref_logits
+        final_logits = coref_logits + topk_mention_logits_pair
         final_logits = self._mask_antecedent_logits(final_logits, span_mask)
         # adding zero logits for null span
         final_logits = torch.cat(
@@ -394,11 +407,18 @@ class FCorefModel(BertPreTrainedModel):
             outputs = (span_mask,) + outputs
 
         if gold_clusters is not None:
-            labels_after_pruning = self._get_cluster_labels_after_pruning(
+            (
+                mention_labels_after_pruning,
+                labels_after_pruning,
+            ) = self._get_cluster_labels_after_pruning(
                 mention_start_ids, mention_end_ids, gold_clusters
             )
             loss = self._get_marginal_log_likelihood_loss(
-                final_logits, labels_after_pruning, span_mask
+                topk_mention_logits,
+                final_logits,
+                mention_labels_after_pruning,
+                labels_after_pruning,
+                span_mask,
             )
             outputs = (loss,) + outputs
 
