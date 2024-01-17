@@ -58,10 +58,10 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         is_split_into_words=True,
         return_length=True,
         return_attention_mask=False,
+        max_length=tokenizer.max_segment_len,
     )
     # print("encoded_text:", encoded_text)
     # print("=====================================")
-
 
     # shifting clusters indices to align with bpe tokens
     # align clusters is the reason we can't do it in batches.
@@ -73,6 +73,8 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
                     encoded_text.word_to_tokens(token_to_new_token_map[end - 1]).end,
                 )
                 for start, end in cluster
+                if encoded_text.word_to_tokens(token_to_new_token_map[start])
+                and encoded_text.word_to_tokens(token_to_new_token_map[end - 1])
             ]
             for cluster in clusters
         ]
