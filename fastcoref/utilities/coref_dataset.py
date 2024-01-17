@@ -88,7 +88,7 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         print(token_to_new_token_map)
         print(encoded_text.word_ids())
         new_clusters = []
-        # raise ValueError
+        raise ValueError(e)
 
     return {
         "tokens": tokens,
