@@ -58,7 +58,7 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         is_split_into_words=True,
         return_length=True,
         return_attention_mask=False,
-        max_length=tokenizer.max_segment_len,
+        max_length=tokenizer.model_max_length,
     )
     # print("encoded_text:", encoded_text)
     # print("=====================================")
