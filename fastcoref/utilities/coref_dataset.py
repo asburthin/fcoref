@@ -10,6 +10,7 @@ from tqdm import tqdm
 from fastcoref.utilities import util, consts
 
 logger = logging.getLogger(__name__)
+MAX_SEQUENCE_LENGTH = 510
 
 
 def add_speaker_information(tokens, speakers):
@@ -58,11 +59,8 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         is_split_into_words=True,
         return_length=True,
         return_attention_mask=False,
-        max_length=tokenizer.model_max_length,
+        max_length=MAX_SEQUENCE_LENGTH,
     )
-    # print("encoded_text:", encoded_text)
-    # print("=====================================")
-
     # shifting clusters indices to align with bpe tokens
     # align clusters is the reason we can't do it in batches.
     try:
@@ -78,6 +76,7 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
             ]
             for cluster in clusters
         ]
+        new_clusters = [clusters for clusters in new_clusters if len(clusters) > 0]
     except Exception as e:
         print("=====================================")
         print("Error:", e)
@@ -90,13 +89,20 @@ def _tokenize(tokenizer, tokens, clusters, speakers):
         new_clusters = []
         raise ValueError(e)
 
+    if len(encoded_text.word_ids()) > 510:
+        print("encoded_text_len:", len(encoded_text.word_ids()))
+        print("encoded_text_len:", len(encoded_text["input_ids"]))
+        print(tokens)
+        print(new_clusters)
+        print("=====================================")
+
     return {
         "tokens": tokens,
         "input_ids": encoded_text["input_ids"],
         "length": encoded_text["length"][0],
         "gold_clusters": new_clusters,
         # tokens to tokens + speakers
-        "new_token_map": new_token_to_token_map,
+        "new_token_map": new_token_to_token_map[:MAX_SEQUENCE_LENGTH],
         # tokens + speakers to bpe
         "subtoken_map": encoded_text.word_ids(),
     }

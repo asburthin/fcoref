@@ -45,6 +45,8 @@ class FCorefModel(BertPreTrainedModel):
         base_model = AutoModel.from_config(config)
         FCorefModel.base_model_prefix = base_model.base_model_prefix
         FCorefModel.config_class = base_model.config_class
+        # print("==== model config ====", FCorefModel.config_class)
+        # print("hidden_size:", config.hidden_size)
         setattr(self, self.base_model_prefix, base_model)
 
         self.start_mention_mlp = FullyConnectedLayer(
@@ -324,10 +326,18 @@ class FCorefModel(BertPreTrainedModel):
             outputs = self.base_model(input_ids, attention_mask=attention_mask)
             # print("normal:", input_ids.shape)
             # print("normal:", attention_mask.shape)
-        except:
-            print("error:", input_ids.shape)
-            print("error:", attention_mask.shape)
-            raise ValueError
+        except Exception as e:
+            # print("error:", input_ids.shape)
+            # print("error:", attention_mask.shape)
+            print("input_ids:", f"'{input_ids.detach().cpu().numpy()}'")
+            print("attention_mask:", f"'{attention_mask.detach().cpu().numpy()}'")
+            # print("batch:", batch)
+            import pandas as pd
+
+            input_ids = pd.DataFrame(input_ids.cpu().numpy()).to_csv(
+                "temp_input_ids.csv"
+            )
+            raise ValueError(e)
         sequence_output = outputs.last_hidden_state
 
         attention_mask = attention_mask.view(
