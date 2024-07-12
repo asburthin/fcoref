@@ -70,10 +70,9 @@ class Evaluator(object):
         return self.p_num, self.p_den, self.r_num, self.r_den
 
 
-
 class AZPCorefEvaluator(object):
-    """ Evaluator for anaphoric zero pronoun
-    """
+    """Evaluator for anaphoric zero pronoun"""
+
     def __init__(self):
         self.p_num = 0
         self.g_num = 0
@@ -92,47 +91,90 @@ class AZPCorefEvaluator(object):
     def get_prf(self):
         return self.get_precision(), self.get_recall(), self.get_f1()
 
-    def update(self, gold_clusters, top_m_units, top_antecedents_index, top_antecedents_score):
+    # def update(self, gold_clusters, top_m_units, top_antecedents_index, top_antecedents_score):
+
+    #     example_predicted_azps = list()
+    #     example_gold_azps = list()
+    #     predicted_antecedents = dict()
+
+    #     # 处理gcs，去掉其中的非azp
+    #     for cluster in gold_clusters:
+    #         sorted_cluster = sorted(cluster, key=lambda x: x[0])
+    #         is_azp = False
+    #         for start, end in sorted_cluster:
+    #             if start == end:
+    #                 if is_azp:
+    #                     example_gold_azps.append([(start, end), sorted_cluster])
+    #             elif start != end:
+    #                 is_azp = True
+
+    #     # 得到预测结果中零指代指向的对象
+    #     for idx, u in enumerate(top_m_units):
+    #         if u[0] == u[1]:
+    #             max_score = 0
+    #             max_antecedent_idx = -1
+    #             for antecedent_idx, score in enumerate(top_antecedents_score[idx]):
+    #                 if score > max_score and antecedent_idx != len(top_antecedents_score[idx]) - 1:# and not is_zp(top_m_units[top_antecedents_index[idx][antecedent_idx]]):
+    #                     max_score = score
+    #                     max_antecedent_idx = antecedent_idx
+    #             if max_antecedent_idx != -1:
+    #                 predicted_antecedents[idx] = top_antecedents_index[idx][max_antecedent_idx].item()
+
+    #     for zp_idx in predicted_antecedents:
+    #         predicted_antecedent = predicted_antecedents[zp_idx]
+    #         is_azp = True
+    #         while top_m_units[predicted_antecedent][0] == top_m_units[predicted_antecedent][1]:
+    #             if predicted_antecedent in predicted_antecedents:
+    #                 predicted_antecedent = predicted_antecedents[predicted_antecedent]
+    #             else:
+    #                 is_azp = False
+    #                 break
+    #         if is_azp == True:
+    #             example_predicted_azps.append([top_m_units[zp_idx], top_m_units[predicted_antecedent]])
+
+    #     self.g_num += len(example_gold_azps)
+    #     self.p_num += len(example_predicted_azps)
+
+    #     for predicted_azp in example_predicted_azps:
+    #         for gold_azp in example_gold_azps:
+    #             if predicted_azp[0][0] == gold_azp[0][0]:
+    #                 if tuple(predicted_azp[1]) in gold_azp[1]:
+    #                     self.hit_num += 1
+    #                 break
+
+    def update(self, gold_clusters, predicted_clusters):
 
         example_predicted_azps = list()
         example_gold_azps = list()
-        predicted_antecedents = dict()
 
         # 处理gcs，去掉其中的非azp
         for cluster in gold_clusters:
             sorted_cluster = sorted(cluster, key=lambda x: x[0])
+            normal_mention_cluster = [
+                (start, end) for start, end in sorted_cluster if start != end
+            ]
             is_azp = False
             for start, end in sorted_cluster:
                 if start == end:
                     if is_azp:
-                        example_gold_azps.append([(start, end), sorted_cluster])
+                        example_gold_azps.append([(start, end), normal_mention_cluster])
                 elif start != end:
                     is_azp = True
 
-        # 得到预测结果中零指代指向的对象
-        for idx, u in enumerate(top_m_units):
-            if u[0] == u[1]:
-                max_score = 0
-                max_antecedent_idx = -1
-                for antecedent_idx, score in enumerate(top_antecedents_score[idx]):
-                    if score > max_score and antecedent_idx != len(top_antecedents_score[idx]) - 1:# and not is_zp(top_m_units[top_antecedents_index[idx][antecedent_idx]]):
-                        max_score = score
-                        max_antecedent_idx = antecedent_idx
-                if max_antecedent_idx != -1:
-                    predicted_antecedents[idx] = top_antecedents_index[idx][max_antecedent_idx].item()
-
-        
-        for zp_idx in predicted_antecedents:
-            predicted_antecedent = predicted_antecedents[zp_idx]
-            is_azp = True
-            while top_m_units[predicted_antecedent][0] == top_m_units[predicted_antecedent][1]:
-                if predicted_antecedent in predicted_antecedents:
-                    predicted_antecedent = predicted_antecedents[predicted_antecedent]
-                else:
-                    is_azp = False
-                    break
-            if is_azp == True:
-                example_predicted_azps.append([top_m_units[zp_idx], top_m_units[predicted_antecedent]])
+        for cluster in predicted_clusters:
+            sorted_cluster = sorted(cluster, key=lambda x: x[0])
+            normal_mention_cluster = [
+                (start, end) for start, end in sorted_cluster if start != end
+            ]
+            is_azp = False
+            for start, end in sorted_cluster:
+                if start == end:
+                    if is_azp:
+                        example_predicted_azps.append(
+                            [(start, end), normal_mention_cluster]
+                        )
+                elif start != end:
+                    is_azp = True
 
         self.g_num += len(example_gold_azps)
         self.p_num += len(example_predicted_azps)
@@ -140,7 +182,7 @@ class AZPCorefEvaluator(object):
         for predicted_azp in example_predicted_azps:
             for gold_azp in example_gold_azps:
                 if predicted_azp[0][0] == gold_azp[0][0]:
-                    if tuple(predicted_azp[1]) in gold_azp[1]:
+                    if len(set(predicted_azp[1]).intersection(set(gold_azp[1]))) > 0:
                         self.hit_num += 1
                     break
 
@@ -209,12 +251,14 @@ def lea(clusters, mention_to_gold):
         all_links = len(c) * (len(c) - 1) / 2.0
         for i, m in enumerate(c):
             if m in mention_to_gold:
-                for m2 in c[i + 1:]:
-                    if m2 in mention_to_gold and mention_to_gold[m] == mention_to_gold[m2]:
+                for m2 in c[i + 1 :]:
+                    if (
+                        m2 in mention_to_gold
+                        and mention_to_gold[m] == mention_to_gold[m2]
+                    ):
                         common_links += 1
 
         num += len(c) * common_links / float(all_links)
         dem += len(c)
 
     return num, dem
-

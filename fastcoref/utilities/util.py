@@ -57,11 +57,12 @@ def output_evaluation_metrics(metrics_dict, prefix):
     ].get_prf()
     p, r, f1 = metrics_dict["coref"].get_prf()
     wozp_p, wozp_r, wozp_f1 = metrics_dict["wozp_evaluator"].get_prf()
+    azp_p, azp_r, azp_f1 = metrics_dict["azp_evaluator"].get_prf()
     results = {
         "eval_loss": loss,
-        # "post pruning mention precision": post_pruning_mention_pr,
-        # "post pruning mention recall": post_pruning_mentions_r,
-        # "post pruning mention f1": post_pruning_mention_f1,
+        "post pruning mention precision": post_pruning_mention_pr,
+        "post pruning mention recall": post_pruning_mentions_r,
+        "post pruning mention f1": post_pruning_mention_f1,
         "normal mention precision": normal_mention_p,
         "normal mention recall": normal_mentions_r,
         "normal mention f1": normal_mention_f1,
@@ -71,6 +72,9 @@ def output_evaluation_metrics(metrics_dict, prefix):
         "mention precision": mention_p,
         "mention recall": mentions_r,
         "mention f1": mention_f1,
+        "azp precision": azp_p,
+        "azp recall": azp_r,
+        "azp f1": azp_f1,
         "wozp precision": wozp_p,
         "wozp recall": wozp_r,
         "wozp f1": wozp_f1,
@@ -94,17 +98,18 @@ def update_metrics(metrics, span_starts, span_ends, gold_clusters, predicted_clu
     candidate_mentions = list(zip(span_starts, span_ends))
 
     def remove_zp_cluster(clusters):
-        # 移除聚类中的零指代，和tools中的略有不同
-        clusters_wo_zp = list()
+        """Remove zero pronoun clusters"""
+        clusters_no_zp = list()
         for cluster in clusters:
-            cluster_wo_zp = list()
-            for sloc, eloc in cluster:
-                if eloc - sloc > 0:
-                    cluster_wo_zp.append(tuple([sloc, eloc]))  # 此处需强制转成 tuple
-            if len(cluster_wo_zp) > 1:
-                clusters_wo_zp.append(tuple(cluster_wo_zp))
-
-        return clusters_wo_zp
+            cluster_no_zp = list()
+            for start_index, end_index in cluster:
+                if end_index - start_index > 0:
+                    # Add non-zero pronoun to cluster
+                    cluster_no_zp.append(tuple([start_index, end_index]))
+            if len(cluster_no_zp) > 0:
+                # Add cluster to clusters_no_zp if it contains at least one non-zero pronoun
+                clusters_no_zp.append(tuple(cluster_no_zp))
+        return clusters_no_zp
 
     wo_zp_gold_clusters = remove_zp_cluster(gold_clusters)
     wo_zp_predicted_clusters = remove_zp_cluster(predicted_clusters)
@@ -144,6 +149,7 @@ def update_metrics(metrics, span_starts, span_ends, gold_clusters, predicted_clu
         wo_zp_mention_to_predicted_clusters,
         wo_zp_mention_to_gold_clusters,
     )
+    metrics["azp_evaluator"].update(gold_clusters, predicted_clusters)
 
 
 def encode(batch, tokenizer, nlp):
